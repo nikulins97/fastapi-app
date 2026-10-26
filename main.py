@@ -1,9 +1,7 @@
-from datetime import datetime, timezone
-from typing import Annotated, Literal
+from fastapi import FastAPI, HTTPException
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+import services
 from schemas import *
-from repository import Storage, next_id
 
 
 app = FastAPI(
@@ -25,42 +23,18 @@ async def health_check():
     response_model=AnalysisRead,
     status_code=201,
 )
-async def create_analysis(
-    payload: AnalysisCreate,
-    storage: Storage,
-):
-    global next_id
-
-    analysis = AnalysisRead(
-        id=next_id,
-        name=payload.name,
-        image_url=payload.image_url,
-        status="pending",
-        result=None,
-        created_at=datetime.now(timezone.utc),
-    )
-
-    storage[analysis.id] = analysis
-    next_id += 1
-
-    return analysis
+async def create_analysis(payload: AnalysisCreate):
+    return services.create_analysis(payload)
 
 
 @app.get(
     "/analyses",
     response_model=list[AnalysisRead],
 )
-async def list_analyses(
-    storage: Storage,
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
-    offset: Annotated[int, Query(ge=0)] = 0,
-):
-    items = sorted(
-        storage.values(),
-        key=lambda item: item.id,
-    )
+async def list_analyses():
+    items = services.get_analysis_list()
 
-    return items[offset:offset + limit]
+    return items
 
 
 @app.get(
@@ -69,9 +43,8 @@ async def list_analyses(
 )
 async def get_analysis(
     analysis_id: int,
-    storage: Storage,
 ):
-    analysis = storage.get(analysis_id)
+    analysis = services.get_analysis_by_id(analysis_id)
 
     if analysis is None:
         raise HTTPException(
@@ -89,41 +62,18 @@ async def get_analysis(
 async def update_analysis(
     analysis_id: int,
     payload: AnalysisUpdate,
-    storage: Storage,
 ):
-    analysis = storage.get(analysis_id)
 
-    if analysis is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Analysis not found",
-        )
-
-    updates = payload.model_dump(exclude_unset=True)
-
-    updated_analysis = analysis.model_copy(
-        update=updates,
-    )
-
-    storage[analysis_id] = updated_analysis
+    updated_analysis = services.update_analysis(analysis_id, payload)
 
     return updated_analysis
 
 
 @app.delete(
     "/analyses/{analysis_id}",
-    status_code=204,
+    status_code=200,
 )
-async def delete_analysis(
-    analysis_id: int,
-    storage: Storage,
-):
-    if analysis_id not in storage:
-        raise HTTPException(
-            status_code=404,
-            detail="Analysis not found",
-        )
+async def delete_analysis(analysis_id: int):
+    res = services.delete_analyses(analysis_id)
 
-    del storage[analysis_id]
-
-    return Response(status_code=204)
+    return res
