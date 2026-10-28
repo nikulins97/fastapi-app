@@ -1,14 +1,19 @@
 from datetime import datetime, timezone
 
-from schemas import AnalysisCreate, AnalysisRead, AnalysisUpdate
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import Analysis
+from schemas import AnalysisCreate, AnalysisUpdate
 import repository
+
 
 class AnalysisNotFoundError(Exception):
     """Exception raised when an analysis is not found."""
 
 
-def create_analysis(payload: AnalysisCreate) -> AnalysisRead:
-    return repository.create_analysis(
+async def create_analysis(session: AsyncSession, payload: AnalysisCreate) -> Analysis:
+    return await repository.create_analysis(
+        session,
         payload,
         status="pending",
         result=None,
@@ -16,33 +21,32 @@ def create_analysis(payload: AnalysisCreate) -> AnalysisRead:
     )
 
 
-
-def get_analysis_by_id(analysis_id: int) -> AnalysisRead | None:
-    analysis = repository.get_by_id(analysis_id)
+async def get_analysis_by_id(session: AsyncSession, analysis_id: int) -> Analysis:
+    analysis = await repository.get_by_id(session, analysis_id)
 
     if analysis is None:
         raise AnalysisNotFoundError("Analysis not found")
 
     return analysis
 
-def get_analysis_list():
-    analysis_list = repository.get_storage()
 
-    return list(analysis_list.values())
+async def get_analysis_list(session: AsyncSession) -> list[Analysis]:
+    return await repository.list_analyses(session)
 
-def delete_analyses(analyses_id: int):
-    if repository.get_by_id(analyses_id) is None:
+
+async def delete_analyses(session: AsyncSession, analyses_id: int) -> bool:
+    if await repository.get_by_id(session, analyses_id) is None:
         raise AnalysisNotFoundError("Analysis not found")
 
-    return repository.delete_analysis(analyses_id)
+    return await repository.delete_analysis(session, analyses_id)
 
 
-
-def update_analysis(
+async def update_analysis(
+    session: AsyncSession,
     analysis_id: int,
     payload: AnalysisUpdate,
-) -> AnalysisRead:
-    updated_analysis = repository.update_analysis(analysis_id, payload)
+) -> Analysis:
+    updated_analysis = await repository.update_analysis(session, analysis_id, payload)
 
     if updated_analysis is None:
         raise AnalysisNotFoundError("Analysis not found")

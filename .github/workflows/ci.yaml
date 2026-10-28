@@ -9,6 +9,24 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fastapi
+          POSTGRES_PASSWORD: fastapi
+          POSTGRES_DB: fastapi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fastapi -d fastapi"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://fastapi:fastapi@localhost:5432/fastapi
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,6 +40,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Run migrations
+        run: alembic upgrade head
 
       - name: Run tests
         run: pytest -v
