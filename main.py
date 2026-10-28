@@ -1,14 +1,25 @@
-from fastapi import FastAPI, HTTPException, Request
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import services
-from schemas import *
+from database import engine, get_session
+from schemas import AnalysisCreate, AnalysisRead, AnalysisUpdate
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await engine.dispose()
 
 
 app = FastAPI(
     title="Medical AI Analysis API",
     description="API for managing AI analysis tasks",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -19,7 +30,6 @@ async def analysis_not_found_error_handler(request: Request, exc: services.Analy
         content={"detail": "Analysis not found"},
     )
 
-# ---------- Endpoints ----------
 
 @app.get("/health")
 async def health_check():
@@ -31,18 +41,19 @@ async def health_check():
     response_model=AnalysisRead,
     status_code=201,
 )
-async def create_analysis(payload: AnalysisCreate):
-    return services.create_analysis(payload)
+async def create_analysis(
+    payload: AnalysisCreate,
+    session: AsyncSession = Depends(get_session),
+):
+    return await services.create_analysis(session, payload)
 
 
 @app.get(
     "/analyses",
     response_model=list[AnalysisRead],
 )
-async def list_analyses():
-    items = services.get_analysis_list()
-
-    return items
+async def list_analyses(session: AsyncSession = Depends(get_session)):
+    return await services.get_analysis_list(session)
 
 
 @app.get(
@@ -51,10 +62,9 @@ async def list_analyses():
 )
 async def get_analysis(
     analysis_id: int,
+    session: AsyncSession = Depends(get_session),
 ):
-    analysis = services.get_analysis_by_id(analysis_id)
-
-    return analysis
+    return await services.get_analysis_by_id(session, analysis_id)
 
 
 @app.patch(
@@ -64,18 +74,17 @@ async def get_analysis(
 async def update_analysis(
     analysis_id: int,
     payload: AnalysisUpdate,
+    session: AsyncSession = Depends(get_session),
 ):
-
-    updated_analysis = services.update_analysis(analysis_id, payload)
-
-    return updated_analysis
+    return await services.update_analysis(session, analysis_id, payload)
 
 
 @app.delete(
     "/analyses/{analysis_id}",
     status_code=200,
 )
-async def delete_analysis(analysis_id: int):
-    res = services.delete_analyses(analysis_id)
-
-    return res
+async def delete_analysis(
+    analysis_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    return await services.delete_analyses(session, analysis_id)

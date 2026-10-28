@@ -1,69 +1,64 @@
 from datetime import datetime
-from typing import Annotated
-from fastapi import Depends
-from schemas import AnalysisRead, AnalysisCreate, AnalysisUpdate
 
-# ---------- In-memory storage ----------
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-analyses: dict[int, AnalysisRead] = {}
-next_id = 1
+from models import Analysis
+from schemas import AnalysisCreate, AnalysisUpdate
 
 
-# ---------- Dependency ----------
+async def get_by_id(session: AsyncSession, analysis_id: int) -> Analysis | None:
+    return await session.get(Analysis, analysis_id)
 
-def get_storage() -> dict[int, AnalysisRead]:
-    return analyses
 
-def get_by_id(analysis_id: int) -> AnalysisRead | None:
-    return analyses.get(analysis_id)
+async def list_analyses(session: AsyncSession) -> list[Analysis]:
+    result = await session.scalars(select(Analysis).order_by(Analysis.id))
+    return list(result.all())
 
-def create_analysis(
+
+async def create_analysis(
+    session: AsyncSession,
     payload: AnalysisCreate,
-    status,
+    status: str,
     *,
     result: str | None,
     created_at: datetime,
-) -> AnalysisRead:
-    global next_id
-
-    analysis = AnalysisRead(
-        id=next_id,
+) -> Analysis:
+    analysis = Analysis(
         name=payload.name,
-        image_url=payload.image_url,
-        status="pending",
+        image_url=str(payload.image_url),
+        status=status,
         result=result,
         created_at=created_at,
     )
-
-    analyses[analysis.id] = analysis
-    next_id += 1
-
+    session.add(analysis)
+    await session.flush()
+    await session.refresh(analysis)
     return analysis
 
-def delete_analysis(analysis_id: int) -> bool:
-    return analyses.pop(analysis_id, None) is not None
 
-def update_analysis(
+async def delete_analysis(session: AsyncSession, analysis_id: int) -> bool:
+    analysis = await session.get(Analysis, analysis_id)
+    if analysis is None:
+        return False
+
+    await session.delete(analysis)
+    await session.flush()
+    return True
+
+
+async def update_analysis(
+    session: AsyncSession,
     analysis_id: int,
     payload: AnalysisUpdate,
-) -> AnalysisRead | None:
-    analysis = analyses.get(analysis_id)
-
+) -> Analysis | None:
+    analysis = await session.get(Analysis, analysis_id)
     if analysis is None:
         return None
 
-    updated_data = payload.model_dump(exclude_unset=True)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(analysis, field, value)
 
-    updated_analysis = analysis.model_copy(
-        update=updated_data,
-    )
-
-    analyses[analysis_id] = updated_analysis
-
-    return updated_analysis
-
-
-Storage = Annotated[
-    dict[int, AnalysisRead],
-    Depends(get_storage),
-]
+    await session.flush()
+    await session.refresh(analysis)
+    return analysis

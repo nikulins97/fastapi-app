@@ -6,6 +6,12 @@ test_data = {
 }
 
 
+def test_health(client):
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_create_analysis(client):
     response = client.post("/analyses", json=test_data)
     assert response.status_code == 201
