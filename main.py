@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 import services
 from schemas import *
@@ -10,6 +11,13 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+@app.exception_handler(services.AnalysisNotFoundError)
+async def analysis_not_found_error_handler(request: Request, exc: services.AnalysisNotFoundError):
+    return JSONResponse(
+        status_code=404,
+        content={"detail": "Analysis not found"},
+    )
 
 # ---------- Endpoints ----------
 
@@ -45,12 +53,6 @@ async def get_analysis(
     analysis_id: int,
 ):
     analysis = services.get_analysis_by_id(analysis_id)
-
-    if analysis is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Analysis not found",
-        )
 
     return analysis
 
