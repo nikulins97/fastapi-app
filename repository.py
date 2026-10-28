@@ -40,9 +40,8 @@ def create_analysis(
 
     return analysis
 
-def delete_analysis(analysis_id: int):
-    del analyses[analysis_id]
-    return "Analysis is deleted"
+def delete_analysis(analysis_id: int) -> bool:
+    return analyses.pop(analysis_id, None) is not None
 
 def update_analysis(
     analysis_id: int,

@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 
-from fastapi import HTTPException
-
 from schemas import AnalysisCreate, AnalysisRead, AnalysisUpdate
 import repository
+
+class AnalysisNotFoundError(Exception):
+    """Exception raised when an analysis is not found."""
 
 
 def create_analysis(payload: AnalysisCreate) -> AnalysisRead:
@@ -19,6 +20,9 @@ def create_analysis(payload: AnalysisCreate) -> AnalysisRead:
 def get_analysis_by_id(analysis_id: int) -> AnalysisRead | None:
     analysis = repository.get_by_id(analysis_id)
 
+    if analysis is None:
+        raise AnalysisNotFoundError("Analysis not found")
+
     return analysis
 
 def get_analysis_list():
@@ -27,10 +31,11 @@ def get_analysis_list():
     return list(analysis_list.values())
 
 def delete_analyses(analyses_id: int):
+    if repository.get_by_id(analyses_id) is None:
+        raise AnalysisNotFoundError("Analysis not found")
+
     return repository.delete_analysis(analyses_id)
 
-class AnalysisNotFoundError(Exception):
-    pass
 
 
 def update_analysis(
